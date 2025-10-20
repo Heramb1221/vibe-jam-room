@@ -14,7 +14,183 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          message_type: string | null
+          room_id: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          message_type?: string | null
+          room_id: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          message_type?: string | null
+          room_id?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      room_participants: {
+        Row: {
+          id: string
+          is_host: boolean | null
+          joined_at: string
+          mic_enabled: boolean | null
+          room_id: string
+          user_id: string
+          username: string
+          video_enabled: boolean | null
+        }
+        Insert: {
+          id?: string
+          is_host?: boolean | null
+          joined_at?: string
+          mic_enabled?: boolean | null
+          room_id: string
+          user_id: string
+          username: string
+          video_enabled?: boolean | null
+        }
+        Update: {
+          id?: string
+          is_host?: boolean | null
+          joined_at?: string
+          mic_enabled?: boolean | null
+          room_id?: string
+          user_id?: string
+          username?: string
+          video_enabled?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          created_at: string
+          host_id: string
+          id: string
+          karaoke_mode: boolean | null
+          name: string
+          theme: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          host_id: string
+          id?: string
+          karaoke_mode?: boolean | null
+          name: string
+          theme?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          host_id?: string
+          id?: string
+          karaoke_mode?: boolean | null
+          name?: string
+          theme?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      songs: {
+        Row: {
+          added_by: string
+          artist: string | null
+          created_at: string
+          id: string
+          queue_position: number
+          room_id: string
+          title: string
+          video_id: string
+        }
+        Insert: {
+          added_by: string
+          artist?: string | null
+          created_at?: string
+          id?: string
+          queue_position: number
+          room_id: string
+          title: string
+          video_id: string
+        }
+        Update: {
+          added_by?: string
+          artist?: string | null
+          created_at?: string
+          id?: string
+          queue_position?: number
+          room_id?: string
+          title?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "songs_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

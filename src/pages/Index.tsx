@@ -1,11 +1,95 @@
-import { Music, Users, Radio, Mic2, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Music, Users, Radio, Mic2, ArrowRight, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+  const [roomName, setRoomName] = useState("");
+  const [joinRoomId, setJoinRoomId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+
+  const handleCreateRoom = async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!roomName.trim()) {
+      toast({ title: "Please enter a room name", variant: "destructive" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data: room, error } = await supabase
+        .from('rooms')
+        .insert({
+          name: roomName,
+          host_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Add host as participant
+      await supabase.from('room_participants').insert({
+        room_id: room.id,
+        user_id: user.id,
+        username: profile?.username || 'Anonymous',
+        is_host: true,
+      });
+
+      toast({ title: "Room created!" });
+      navigate(`/room/${room.id}`);
+    } catch (error: any) {
+      toast({ title: "Error creating room", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+      setCreateDialogOpen(false);
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    if (!joinRoomId.trim()) {
+      toast({ title: "Please enter a room ID", variant: "destructive" });
+      return;
+    }
+
+    navigate(`/room/${joinRoomId}`);
+    setJoinDialogOpen(false);
+  };
 
   const features = [
     {
@@ -41,12 +125,43 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Button variant="ghost" onClick={() => navigate('/room')}>
-              Join Room
-            </Button>
-            <Button className="gradient-primary glow-hover">
-              Sign In
-            </Button>
+            {user ? (
+              <>
+                <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost">Join Room</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Join a Room</DialogTitle>
+                      <DialogDescription>Enter the room ID to join</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="joinRoomId">Room ID</Label>
+                        <Input
+                          id="joinRoomId"
+                          placeholder="Enter room ID"
+                          value={joinRoomId}
+                          onChange={(e) => setJoinRoomId(e.target.value)}
+                        />
+                      </div>
+                      <Button onClick={handleJoinRoom} disabled={loading} className="w-full">
+                        Join Room
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button variant="ghost" size="sm" onClick={signOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button className="gradient-primary glow-hover" onClick={() => navigate('/auth')}>
+                Sign In
+              </Button>
+            )}
           </div>
         </div>
       </nav>
@@ -79,17 +194,74 @@ const Index = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <Button 
-                size="lg" 
-                className="gradient-primary glow-hover text-lg h-14 px-8"
-                onClick={() => navigate('/room')}
-              >
-                Join a Room
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button size="lg" variant="outline" className="text-lg h-14 px-8 border-primary/20 hover:border-primary">
-                Create Room
-              </Button>
+              {user ? (
+                <>
+                  <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="lg" className="gradient-primary glow-hover text-lg h-14 px-8">
+                        Create Room
+                        <ArrowRight className="ml-2 h-5 w-5" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Create a New Room</DialogTitle>
+                        <DialogDescription>Give your room a name and start listening together</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="roomName">Room Name</Label>
+                          <Input
+                            id="roomName"
+                            placeholder="My Awesome Room"
+                            value={roomName}
+                            onChange={(e) => setRoomName(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={handleCreateRoom} disabled={loading} className="w-full">
+                          {loading ? "Creating..." : "Create Room"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="lg" variant="outline" className="text-lg h-14 px-8 border-primary/20 hover:border-primary">
+                        Join Room
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Join a Room</DialogTitle>
+                        <DialogDescription>Enter the room ID to join</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="joinRoomIdHero">Room ID</Label>
+                          <Input
+                            id="joinRoomIdHero"
+                            placeholder="Enter room ID"
+                            value={joinRoomId}
+                            onChange={(e) => setJoinRoomId(e.target.value)}
+                          />
+                        </div>
+                        <Button onClick={handleJoinRoom} disabled={loading} className="w-full">
+                          Join Room
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              ) : (
+                <Button 
+                  size="lg" 
+                  className="gradient-primary glow-hover text-lg h-14 px-8"
+                  onClick={() => navigate('/auth')}
+                >
+                  Sign In to Get Started
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              )}
             </div>
 
             {/* Decorative waveform */}
@@ -156,7 +328,11 @@ const Index = () => {
               It takes less than a minute to get started.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="gradient-primary glow-hover text-lg h-14 px-8">
+              <Button 
+                size="lg" 
+                className="gradient-primary glow-hover text-lg h-14 px-8"
+                onClick={() => user ? setCreateDialogOpen(true) : navigate('/auth')}
+              >
                 Get Started Free
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
