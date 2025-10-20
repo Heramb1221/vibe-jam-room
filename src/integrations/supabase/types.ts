@@ -191,6 +191,51 @@ export type Database = {
           },
         ]
       }
+      playback_state: {
+        Row: {
+          id: string
+          room_id: string
+          is_playing: boolean
+          playback_position: number
+          current_song_id: string | null
+          updated_by: string
+          last_updated: string
+        }
+        Insert: {
+          id?: string
+          room_id: string
+          is_playing?: boolean
+          playback_position?: number
+          current_song_id?: string | null
+          updated_by: string
+          last_updated?: string
+        }
+        Update: {
+          id?: string
+          room_id?: string
+          is_playing?: boolean
+          playback_position?: number
+          current_song_id?: string | null
+          updated_by?: string
+          last_updated?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playback_state_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playback_state_current_song_id_fkey"
+            columns: ["current_song_id"]
+            isOneToOne: false
+            referencedRelation: "songs"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
