@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, Radio, Mic2, ArrowRight, LogOut, Heart } from "lucide-react";
+import { Users, Radio, Mic2, ArrowRight, LogOut, Heart, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -49,6 +49,8 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [createdRoomLink, setCreatedRoomLink] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const handleCreateRoom = async () => {
     if (!user) {
@@ -106,12 +108,18 @@ const Index = () => {
         console.error("Participant error:", participantError);
       }
 
-      toast({ title: "Room created successfully!" });
-      setCreateDialogOpen(false);
+      // Generate shareable link
+      const roomLink = `${window.location.origin}/room/${room.id}`;
+      setCreatedRoomLink(roomLink);
+      
+      toast({ 
+        title: "Room created successfully!",
+        description: "Share the link with your friends"
+      });
+      
+      // Don't close dialog yet - show the link first
       setRoomName("");
       
-      // Navigate to the room
-      navigate(`/room/${room.id}`);
     } catch (error: any) {
       console.error("Error creating room:", error);
       toast({ 
@@ -119,9 +127,27 @@ const Index = () => {
         description: error.message || "An unexpected error occurred", 
         variant: "destructive" 
       });
-    } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(createdRoomLink);
+      setLinkCopied(true);
+      toast({ title: "Link copied to clipboard!" });
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (error) {
+      toast({ title: "Failed to copy link", variant: "destructive" });
+    }
+  };
+
+  const handleJoinCreatedRoom = () => {
+    const roomId = createdRoomLink.split('/').pop();
+    setCreateDialogOpen(false);
+    setCreatedRoomLink("");
+    setLoading(false);
+    navigate(`/room/${roomId}`);
   };
 
   const handleJoinRoom = async () => {
@@ -246,7 +272,14 @@ const Index = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
               {user ? (
                 <>
-                  <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                  <Dialog open={createDialogOpen} onOpenChange={(open) => {
+                    setCreateDialogOpen(open);
+                    if (!open) {
+                      setCreatedRoomLink("");
+                      setLinkCopied(false);
+                      setLoading(false);
+                    }
+                  }}>
                     <DialogTrigger asChild>
                       <Button size="lg" className="gradient-primary glow-hover text-lg h-14 px-8">
                         Create Room
@@ -255,23 +288,72 @@ const Index = () => {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Create a New Room</DialogTitle>
-                        <DialogDescription>Give your room a name and start listening together</DialogDescription>
+                        <DialogTitle>
+                          {createdRoomLink ? "Room Created!" : "Create a New Room"}
+                        </DialogTitle>
+                        <DialogDescription>
+                          {createdRoomLink 
+                            ? "Share this link with your friends to invite them"
+                            : "Give your room a name and start listening together"
+                          }
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="roomName">Room Name</Label>
-                          <Input
-                            id="roomName"
-                            placeholder="My Awesome Room"
-                            value={roomName}
-                            onChange={(e) => setRoomName(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
-                          />
-                        </div>
-                        <Button onClick={handleCreateRoom} disabled={loading} className="w-full">
-                          {loading ? "Creating..." : "Create Room"}
-                        </Button>
+                        {!createdRoomLink ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="roomName">Room Name</Label>
+                              <Input
+                                id="roomName"
+                                placeholder="My Awesome Room"
+                                value={roomName}
+                                onChange={(e) => setRoomName(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
+                                disabled={loading}
+                              />
+                            </div>
+                            <Button onClick={handleCreateRoom} disabled={loading} className="w-full">
+                              {loading ? "Creating..." : "Create Room"}
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="space-y-2">
+                              <Label>Room Link</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={createdRoomLink}
+                                  readOnly
+                                  className="flex-1"
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={handleCopyLink}
+                                >
+                                  {linkCopied ? (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <Copy className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Room ID: {createdRoomLink.split('/').pop()}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button onClick={handleCopyLink} variant="outline" className="flex-1">
+                                <Copy className="h-4 w-4 mr-2" />
+                                Copy Link
+                              </Button>
+                              <Button onClick={handleJoinCreatedRoom} className="flex-1">
+                                Join Room
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </DialogContent>
                   </Dialog>
