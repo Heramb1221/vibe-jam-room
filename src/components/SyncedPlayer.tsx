@@ -9,7 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 interface SyncedPlayerProps {
   roomId: string;
   userId: string;
+<<<<<<< HEAD
   isHost: boolean;
+=======
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
   currentSong: {
     id: string;
     video_id: string;
@@ -33,12 +36,17 @@ declare global {
   }
 }
 
+<<<<<<< HEAD
 export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }: SyncedPlayerProps) => {
+=======
+export const SyncedPlayer = ({ roomId, userId, currentSong, onSongEnd }: SyncedPlayerProps) => {
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
   const playerRef = useRef<any>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const [volume, setVolume] = useState(50);
   const [isUpdatingState, setIsUpdatingState] = useState(false);
+<<<<<<< HEAD
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<string>('');
   const { toast } = useToast();
@@ -50,6 +58,12 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       return;
     }
 
+=======
+  const lastSyncTime = useRef<number>(Date.now());
+  const { toast } = useToast();
+
+  useEffect(() => {
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
     const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -63,19 +77,25 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       if (playerRef.current) {
         playerRef.current.destroy();
       }
+<<<<<<< HEAD
       if (syncIntervalRef.current) {
         clearInterval(syncIntervalRef.current);
       }
+=======
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
     };
   }, []);
 
   const initializePlayer = () => {
     if (!currentSong) return;
 
+<<<<<<< HEAD
     if (playerRef.current) {
       playerRef.current.destroy();
     }
 
+=======
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
     playerRef.current = new window.YT.Player('youtube-player', {
       height: '100%',
       width: '100%',
@@ -96,7 +116,10 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   };
 
   const handlePlayerReady = () => {
+<<<<<<< HEAD
     console.log('Player ready');
+=======
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
     setIsPlayerReady(true);
     if (playerRef.current && volume !== undefined) {
       playerRef.current.setVolume(volume);
@@ -105,6 +128,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
 
   const handlePlayerStateChange = (event: any) => {
     if (event.data === window.YT.PlayerState.ENDED) {
+<<<<<<< HEAD
       if (isHost) {
         onSongEnd();
       }
@@ -112,10 +136,17 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   };
 
   // Reload player when song changes
+=======
+      onSongEnd();
+    }
+  };
+
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
   useEffect(() => {
     if (!isPlayerReady || !currentSong) return;
 
     if (playerRef.current && playerRef.current.loadVideoById) {
+<<<<<<< HEAD
       console.log('Loading new video:', currentSong.video_id);
       playerRef.current.loadVideoById(currentSong.video_id);
       
@@ -129,6 +160,12 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   }, [currentSong?.id, isPlayerReady]);
 
   // Subscribe to playback state changes
+=======
+      playerRef.current.loadVideoById(currentSong.video_id);
+    }
+  }, [currentSong?.id, isPlayerReady]);
+
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
   useEffect(() => {
     if (!roomId) return;
 
@@ -150,6 +187,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       )
       .subscribe();
 
+<<<<<<< HEAD
     // Periodic sync for hosts
     if (isHost && isPlayerReady) {
       syncIntervalRef.current = setInterval(() => {
@@ -164,6 +202,12 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       }
     };
   }, [roomId, isPlayerReady, isHost]);
+=======
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId, isPlayerReady]);
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
 
   const loadPlaybackState = async () => {
     try {
@@ -173,6 +217,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
         .eq('room_id', roomId)
         .single();
 
+<<<<<<< HEAD
       if (error) {
         console.error('Error loading playback state:', error);
         // Initialize playback state if it doesn't exist
@@ -182,6 +227,10 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       
       if (data) {
         console.log('Loaded playback state:', data);
+=======
+      if (error) throw error;
+      if (data) {
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
         setPlaybackState(data);
         syncPlayerWithState(data);
       }
@@ -190,6 +239,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
     }
   };
 
+<<<<<<< HEAD
   const initializePlaybackState = async () => {
     try {
       const { error } = await supabase
@@ -218,11 +268,19 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
 
     lastUpdateRef.current = newState.last_updated;
     console.log('Playback update received:', newState);
+=======
+  const handlePlaybackUpdate = (newState: PlaybackState) => {
+    if (newState.updated_by === userId) {
+      return;
+    }
+
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
     setPlaybackState(newState);
     syncPlayerWithState(newState);
   };
 
   const syncPlayerWithState = (state: PlaybackState) => {
+<<<<<<< HEAD
     if (!playerRef.current || !isPlayerReady) {
       console.log('Player not ready for sync');
       return;
@@ -285,6 +343,24 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
     } catch (error) {
       console.error('Error syncing host position:', error);
     }
+=======
+    if (!playerRef.current || !isPlayerReady) return;
+
+    const currentTime = playerRef.current.getCurrentTime();
+    const timeDiff = Math.abs(currentTime - Number(state.playback_position));
+
+    if (timeDiff > 2) {
+      playerRef.current.seekTo(Number(state.playback_position), true);
+    }
+
+    if (state.is_playing) {
+      playerRef.current.playVideo();
+    } else {
+      playerRef.current.pauseVideo();
+    }
+
+    lastSyncTime.current = Date.now();
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
   };
 
   const updatePlaybackState = async (updates: Partial<PlaybackState>) => {
@@ -294,6 +370,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       setIsUpdatingState(true);
 
       const currentTime = playerRef.current?.getCurrentTime() || 0;
+<<<<<<< HEAD
       const timestamp = new Date().toISOString();
 
       const updateData = {
@@ -310,6 +387,17 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       const { error } = await supabase
         .from('playback_state')
         .update(updateData)
+=======
+
+      const { error } = await supabase
+        .from('playback_state')
+        .update({
+          ...updates,
+          playback_position: updates.playback_position ?? currentTime,
+          updated_by: userId,
+          last_updated: new Date().toISOString(),
+        })
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
         .eq('room_id', roomId);
 
       if (error) throw error;
@@ -326,21 +414,32 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   };
 
   const handlePlay = async () => {
+<<<<<<< HEAD
     if (!playerRef.current || !isHost) return;
+=======
+    if (!playerRef.current) return;
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
 
     playerRef.current.playVideo();
     await updatePlaybackState({ is_playing: true });
   };
 
   const handlePause = async () => {
+<<<<<<< HEAD
     if (!playerRef.current || !isHost) return;
+=======
+    if (!playerRef.current) return;
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
 
     playerRef.current.pauseVideo();
     await updatePlaybackState({ is_playing: false });
   };
 
   const handleSkip = async () => {
+<<<<<<< HEAD
     if (!isHost) return;
+=======
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
     onSongEnd();
   };
 
@@ -375,11 +474,14 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
     <Card className="overflow-hidden bg-card border-border">
       <div className="aspect-video bg-black relative">
         <div id="youtube-player" className="w-full h-full" />
+<<<<<<< HEAD
         {!isPlayerReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <p className="text-white">Loading player...</p>
           </div>
         )}
+=======
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
       </div>
 
       <div className="p-4 space-y-4">
@@ -394,9 +496,14 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
               variant="outline"
               size="icon"
               onClick={playbackState?.is_playing ? handlePause : handlePlay}
+<<<<<<< HEAD
               disabled={!isPlayerReady || !isHost}
               className="h-10 w-10"
               title={!isHost ? "Only host can control playback" : ""}
+=======
+              disabled={!isPlayerReady}
+              className="h-10 w-10"
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
             >
               {playbackState?.is_playing ? (
                 <Pause className="h-5 w-5" />
@@ -408,9 +515,14 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
               variant="outline"
               size="icon"
               onClick={handleSkip}
+<<<<<<< HEAD
               disabled={!isPlayerReady || !isHost}
               className="h-10 w-10"
               title={!isHost ? "Only host can skip songs" : ""}
+=======
+              disabled={!isPlayerReady}
+              className="h-10 w-10"
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
             >
               <SkipForward className="h-5 w-5" />
             </Button>
@@ -436,6 +548,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
             <Maximize2 className="h-5 w-5" />
           </Button>
         </div>
+<<<<<<< HEAD
 
         {!isHost && (
           <p className="text-xs text-muted-foreground text-center">
@@ -446,3 +559,9 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
     </Card>
   );
 };
+=======
+      </div>
+    </Card>
+  );
+};
+>>>>>>> 8ae1ce6c53eabde5f3d0533445165c0ba48a7b9c
