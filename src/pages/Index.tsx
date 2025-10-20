@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Music, Users, Radio, Mic2, ArrowRight, LogOut } from "lucide-react";
+import { Users, Radio, Mic2, ArrowRight, LogOut, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -17,6 +17,28 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const HeartWaveLogo = ({ className = "h-6 w-6" }: { className?: string }) => {
+  return (
+    <div className="relative inline-flex items-center justify-center">
+      <Heart className={`${className} text-primary fill-primary animate-pulse`} />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex items-end gap-[2px] opacity-70">
+          {[...Array(3)].map((_, i) => (
+            <div
+              key={i}
+              className="w-[2px] bg-background rounded-full wave"
+              style={{
+                height: `${[60, 80, 60][i]}%`,
+                animationDelay: `${i * 0.15}s`
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Index = () => {
   const navigate = useNavigate();
@@ -41,38 +63,64 @@ const Index = () => {
 
     setLoading(true);
     try {
-      const { data: profile } = await supabase
+      // First get the user's profile
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('username')
         .eq('user_id', user.id)
         .single();
 
-      const { data: room, error } = await supabase
+      if (profileError) {
+        console.error("Profile error:", profileError);
+      }
+
+      // Create the room
+      const { data: room, error: roomError } = await supabase
         .from('rooms')
         .insert({
-          name: roomName,
+          name: roomName.trim(),
           host_id: user.id,
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (roomError) {
+        throw roomError;
+      }
+
+      if (!room) {
+        throw new Error("Room creation failed - no data returned");
+      }
 
       // Add host as participant
-      await supabase.from('room_participants').insert({
-        room_id: room.id,
-        user_id: user.id,
-        username: profile?.username || 'Anonymous',
-        is_host: true,
-      });
+      const { error: participantError } = await supabase
+        .from('room_participants')
+        .insert({
+          room_id: room.id,
+          user_id: user.id,
+          username: profile?.username || user.email?.split('@')[0] || 'Anonymous',
+          is_host: true,
+        });
 
-      toast({ title: "Room created!" });
+      if (participantError) {
+        console.error("Participant error:", participantError);
+      }
+
+      toast({ title: "Room created successfully!" });
+      setCreateDialogOpen(false);
+      setRoomName("");
+      
+      // Navigate to the room
       navigate(`/room/${room.id}`);
     } catch (error: any) {
-      toast({ title: "Error creating room", description: error.message, variant: "destructive" });
+      console.error("Error creating room:", error);
+      toast({ 
+        title: "Error creating room", 
+        description: error.message || "An unexpected error occurred", 
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
-      setCreateDialogOpen(false);
     }
   };
 
@@ -87,13 +135,14 @@ const Index = () => {
       return;
     }
 
-    navigate(`/room/${joinRoomId}`);
     setJoinDialogOpen(false);
+    setJoinRoomId("");
+    navigate(`/room/${joinRoomId.trim()}`);
   };
 
   const features = [
     {
-      icon: Music,
+      icon: Heart,
       title: "Collaborative Playback",
       description: "Listen to music together in real-time with friends"
     },
@@ -120,8 +169,8 @@ const Index = () => {
       <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Music className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">Music Together</span>
+            <HeartWaveLogo />
+            <span className="text-xl font-bold">HeartWave</span>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
@@ -144,6 +193,7 @@ const Index = () => {
                           placeholder="Enter room ID"
                           value={joinRoomId}
                           onChange={(e) => setJoinRoomId(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
                         />
                       </div>
                       <Button onClick={handleJoinRoom} disabled={loading} className="w-full">
@@ -177,7 +227,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-24 md:py-32 relative">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium animate-fade-in">
-              <Music className="h-4 w-4 text-primary" />
+              <Heart className="h-4 w-4 text-primary fill-primary" />
               <span>Experience Music Together</span>
             </div>
             
@@ -216,6 +266,7 @@ const Index = () => {
                             placeholder="My Awesome Room"
                             value={roomName}
                             onChange={(e) => setRoomName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
                           />
                         </div>
                         <Button onClick={handleCreateRoom} disabled={loading} className="w-full">
@@ -243,6 +294,7 @@ const Index = () => {
                             placeholder="Enter room ID"
                             value={joinRoomId}
                             onChange={(e) => setJoinRoomId(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
                           />
                         </div>
                         <Button onClick={handleJoinRoom} disabled={loading} className="w-full">
@@ -346,11 +398,11 @@ const Index = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Music className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Music Together</span>
+              <HeartWaveLogo className="h-5 w-5" />
+              <span className="font-semibold">HeartWave</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2025 Music Together. Built for music lovers.
+              © 2025 HeartWave. Built for music lovers.
             </p>
           </div>
         </div>
