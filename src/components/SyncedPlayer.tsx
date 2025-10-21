@@ -9,13 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 interface SyncedPlayerProps {
   roomId: string;
   userId: string;
-  isHost: boolean;
   currentSong: {
     id: string;
     video_id: string;
     title: string;
   } | null;
   onSongEnd: () => void;
+  isHost: boolean;
 }
 
 interface PlaybackState {
@@ -33,7 +33,7 @@ declare global {
   }
 }
 
-export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }: SyncedPlayerProps) => {
+export const SyncedPlayer = ({ roomId, userId, currentSong, onSongEnd, isHost }: SyncedPlayerProps) => {
   const playerRef = useRef<any>(null);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
@@ -41,12 +41,13 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   const [isUpdatingState, setIsUpdatingState] = useState(false);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<string>('');
+  const isInitializedRef = useRef(false);
+  const isSyncingRef = useRef(false);
   const { toast } = useToast();
 
   // Load YouTube API
   useEffect(() => {
     if (window.YT) {
-      initializePlayer();
       return;
     }
 
@@ -55,19 +56,32 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
     const firstScriptTag = document.getElementsByTagName('script')[0];
     firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
 
-    window.onYouTubeIframeAPIReady = () => {
-      initializePlayer();
-    };
-
     return () => {
       if (playerRef.current) {
         playerRef.current.destroy();
+        playerRef.current = null;
       }
       if (syncIntervalRef.current) {
         clearInterval(syncIntervalRef.current);
       }
     };
   }, []);
+
+  // Initialize player when YouTube API is ready
+  useEffect(() => {
+    const initializeWhenReady = () => {
+      if (window.YT && window.YT.Player && currentSong && !isInitializedRef.current) {
+        initializePlayer();
+        isInitializedRef.current = true;
+      }
+    };
+
+    if (window.YT && window.YT.Player) {
+      initializeWhenReady();
+    } else {
+      window.onYouTubeIframeAPIReady = initializeWhenReady;
+    }
+  }, [currentSong?.id]);
 
   const initializePlayer = () => {
     if (!currentSong) return;
@@ -106,6 +120,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   const handlePlayerStateChange = (event: any) => {
     if (event.data === window.YT.PlayerState.ENDED) {
       if (isHost) {
+        console.log('Song ended, moving to next');
         onSongEnd();
       }
     }
@@ -113,24 +128,32 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
 
   // Reload player when song changes
   useEffect(() => {
-    if (!isPlayerReady || !currentSong) return;
+    if (!currentSong) {
+      setIsPlayerReady(false);
+      isInitializedRef.current = false;
+      return;
+    }
 
-    if (playerRef.current && playerRef.current.loadVideoById) {
+    if (isPlayerReady && playerRef.current && playerRef.current.loadVideoById) {
       console.log('Loading new video:', currentSong.video_id);
       playerRef.current.loadVideoById(currentSong.video_id);
       
-      // Update playback state with new song
-      updatePlaybackState({ 
-        current_song_id: currentSong.id,
-        playback_position: 0,
-        is_playing: false
-      });
+      // Initialize playback state for new song
+      if (isHost) {
+        setTimeout(() => {
+          updatePlaybackState({ 
+            current_song_id: currentSong.id,
+            playback_position: 0,
+            is_playing: false
+          });
+        }, 500);
+      }
     }
   }, [currentSong?.id, isPlayerReady]);
 
   // Subscribe to playback state changes
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId || !isPlayerReady) return;
 
     loadPlaybackState();
 
@@ -151,7 +174,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       .subscribe();
 
     // Periodic sync for hosts
-    if (isHost && isPlayerReady) {
+    if (isHost) {
       syncIntervalRef.current = setInterval(() => {
         syncHostPosition();
       }, 2000);
@@ -171,12 +194,14 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
         .from('playback_state')
         .select('*')
         .eq('room_id', roomId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error loading playback state:', error);
         // Initialize playback state if it doesn't exist
-        await initializePlaybackState();
+        if (isHost && currentSong) {
+          await initializePlaybackState();
+        }
         return;
       }
       
@@ -184,6 +209,8 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
         console.log('Loaded playback state:', data);
         setPlaybackState(data);
         syncPlayerWithState(data);
+      } else if (isHost && currentSong) {
+        await initializePlaybackState();
       }
     } catch (error) {
       console.error('Error loading playback state:', error);
@@ -191,19 +218,26 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   };
 
   const initializePlaybackState = async () => {
+    if (!currentSong) return;
+    
     try {
       const { error } = await supabase
         .from('playback_state')
-        .insert({
+        .upsert({
           room_id: roomId,
-          current_song_id: currentSong?.id || null,
+          current_song_id: currentSong.id,
           is_playing: false,
           playback_position: 0,
-          updated_by: userId
+          updated_by: userId,
+          last_updated: new Date().toISOString()
+        }, {
+          onConflict: 'room_id'
         });
 
-      if (error && !error.message.includes('duplicate')) {
+      if (error) {
         console.error('Error initializing playback state:', error);
+      } else {
+        console.log('Playback state initialized');
       }
     } catch (error) {
       console.error('Error in initializePlaybackState:', error);
@@ -223,10 +257,12 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
   };
 
   const syncPlayerWithState = (state: PlaybackState) => {
-    if (!playerRef.current || !isPlayerReady) {
-      console.log('Player not ready for sync');
+    if (!playerRef.current || !isPlayerReady || isSyncingRef.current) {
+      console.log('Player not ready for sync or already syncing');
       return;
     }
+
+    isSyncingRef.current = true;
 
     try {
       const currentTime = playerRef.current.getCurrentTime() || 0;
@@ -259,18 +295,22 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       }
     } catch (error) {
       console.error('Error syncing player:', error);
+    } finally {
+      setTimeout(() => {
+        isSyncingRef.current = false;
+      }, 100);
     }
   };
 
   const syncHostPosition = async () => {
-    if (!isHost || !playerRef.current || !isPlayerReady) return;
+    if (!isHost || !playerRef.current || !isPlayerReady || isUpdatingState) return;
 
     try {
       const currentTime = playerRef.current.getCurrentTime() || 0;
       const playerState = playerRef.current.getPlayerState();
       const isPlaying = playerState === window.YT.PlayerState.PLAYING;
 
-      // Only update if state has changed
+      // Only update if state has changed significantly
       if (playbackState) {
         const timeDiff = Math.abs(currentTime - Number(playbackState.playback_position));
         const stateChanged = isPlaying !== playbackState.is_playing;
@@ -297,6 +337,7 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
       const timestamp = new Date().toISOString();
 
       const updateData = {
+        room_id: roomId,
         ...updates,
         playback_position: updates.playback_position ?? currentTime,
         updated_by: userId,
@@ -309,8 +350,9 @@ export const SyncedPlayer = ({ roomId, userId, isHost, currentSong, onSongEnd }:
 
       const { error } = await supabase
         .from('playback_state')
-        .update(updateData)
-        .eq('room_id', roomId);
+        .upsert(updateData, {
+          onConflict: 'room_id'
+        });
 
       if (error) throw error;
     } catch (error: any) {

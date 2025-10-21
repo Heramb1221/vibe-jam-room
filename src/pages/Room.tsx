@@ -62,6 +62,7 @@ const Room = () => {
   const [loading, setLoading] = useState(true);
   const [roomNotFound, setRoomNotFound] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const channelsRef = useRef<any[]>([]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -84,6 +85,11 @@ const Room = () => {
 
     return () => {
       leaveRoom();
+      // Cleanup all channels
+      channelsRef.current.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+      channelsRef.current = [];
     };
   }, [roomId, user, authLoading]);
 
@@ -214,7 +220,10 @@ const Room = () => {
         .order('queue_position', { ascending: true });
 
       if (error) throw error;
-      if (data) setSongs(data);
+      if (data) {
+        console.log('Loaded songs:', data);
+        setSongs(data);
+      }
     } catch (error) {
       console.error("Error loading songs:", error);
     }
@@ -255,6 +264,7 @@ const Room = () => {
   };
 
   const subscribeToUpdates = () => {
+    // Songs channel
     const songsChannel = supabase
       .channel(`songs-${roomId}`)
       .on('postgres_changes', {
@@ -262,9 +272,15 @@ const Room = () => {
         schema: 'public',
         table: 'songs',
         filter: `room_id=eq.${roomId}`
-      }, () => loadSongs())
+      }, (payload) => {
+        console.log('Songs change:', payload);
+        loadSongs(); // Reload to get correct order
+      })
       .subscribe();
 
+    channelsRef.current.push(songsChannel);
+
+    // Messages channel
     const messagesChannel = supabase
       .channel(`messages-${roomId}`)
       .on('postgres_changes', {
@@ -273,10 +289,14 @@ const Room = () => {
         table: 'messages',
         filter: `room_id=eq.${roomId}`
       }, (payload) => {
+        console.log('New message:', payload);
         setMessages(prev => [...prev, payload.new as Message]);
       })
       .subscribe();
 
+    channelsRef.current.push(messagesChannel);
+
+    // Participants channel
     const participantsChannel = supabase
       .channel(`participants-${roomId}`)
       .on('postgres_changes', {
@@ -284,14 +304,13 @@ const Room = () => {
         schema: 'public',
         table: 'room_participants',
         filter: `room_id=eq.${roomId}`
-      }, () => loadParticipants())
+      }, () => {
+        console.log('Participants changed');
+        loadParticipants();
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(songsChannel);
-      supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(participantsChannel);
-    };
+    channelsRef.current.push(participantsChannel);
   };
 
   const handleAddSong = async () => {
@@ -301,6 +320,9 @@ const Room = () => {
       const videoIdMatch = newSong.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
       const videoId = videoIdMatch ? videoIdMatch[1] : newSong;
 
+      // Get the current max position
+      const maxPosition = songs.length > 0 ? Math.max(...songs.map(s => s.queue_position)) : -1;
+
       const { error } = await supabase
         .from('songs')
         .insert({
@@ -308,7 +330,7 @@ const Room = () => {
           title: videoId,
           video_id: videoId,
           added_by: user.id,
-          queue_position: songs.length,
+          queue_position: maxPosition + 1,
         });
 
       if (error) throw error;
@@ -316,6 +338,7 @@ const Room = () => {
       setNewSong("");
       toast({ title: "Song added to queue!" });
     } catch (error: any) {
+      console.error('Error adding song:', error);
       toast({
         title: "Error adding song",
         description: error.message,
@@ -332,8 +355,26 @@ const Room = () => {
         .eq('id', songId);
 
       if (error) throw error;
+      
+      // Reorder remaining songs
+      const remainingSongs = songs.filter(s => s.id !== songId);
+      const updates = remainingSongs.map((song, index) => ({
+        id: song.id,
+        queue_position: index
+      }));
+
+      if (updates.length > 0) {
+        for (const update of updates) {
+          await supabase
+            .from('songs')
+            .update({ queue_position: update.queue_position })
+            .eq('id', update.id);
+        }
+      }
+
       toast({ title: "Song removed from queue" });
     } catch (error) {
+      console.error('Error removing song:', error);
       toast({ title: "Error removing song", variant: "destructive" });
     }
   };
@@ -374,10 +415,13 @@ const Room = () => {
   };
 
   const handleSongEnd = async () => {
-    if (songs.length > 0) {
+    if (songs.length > 0 && currentParticipant?.is_host) {
+      console.log('Song ended, removing from queue');
       await handleDeleteSong(songs[0].id);
     }
   };
+
+  const isHost = currentParticipant?.is_host || false;
 
   if (loading || authLoading) {
     return (
@@ -442,6 +486,7 @@ const Room = () => {
             <SyncedPlayer
               roomId={roomId!}
               userId={user!.id}
+              isHost={isHost}
               currentSong={songs.length > 0 ? songs[0] : null}
               onSongEnd={handleSongEnd}
             />
@@ -491,7 +536,7 @@ const Room = () => {
                             <p className="font-medium truncate">{song.title}</p>
                           </div>
                         </div>
-                        {(user?.id === song.added_by || currentParticipant?.is_host) && (
+                        {(user?.id === song.added_by || isHost) && (
                           <Button
                             variant="ghost"
                             size="icon"
